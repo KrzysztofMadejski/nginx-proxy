@@ -8,7 +8,7 @@
 			server {{ .Container.Node.Address.IP }}:{{ .Address.HostPort }};
 		{{/* If there is no swarm node or the port is not published on host, use container's IP:PORT */}}
 		{{ else if .Network }}
-			# {{ .Container.Name }}
+			# {{ .Container.Name }} on {{ .Network.Name }}
 			server {{ .Network.IP }}:{{ .Address.Port }};
 		{{ end }}
 	{{ else if .Network }}
@@ -23,7 +23,7 @@ location {{ .Path }} {
 		include uwsgi_params;
 		uwsgi_pass {{ trim .Proto }}://{{ trim .Upstream }};
 	{{ else }}
-		proxy_pass {{ trim .Proto }}://{{ trim .Upstream }}/;
+		proxy_pass {{ trim .Proto }}://{{ trim .Upstream }};
 	{{ end }}
 
 	{{ if (exists (printf "/etc/nginx/htpasswd/%s" .Host)) }}
@@ -41,14 +41,12 @@ location {{ .Path }} {
 
 {{ define "upstream-definition" }}
 	upstream {{ .Upstream }} {
+		{{ $networks := .Networks }}
 		{{ range $container := .Containers }}
 			{{ $addrLen := len $container.Addresses }}
-			{{ $networks := .Networks }}
 			{{ range $knownNetwork := $networks }}
 				{{ range $containerNetwork := $container.Networks }}
 					{{ if eq $knownNetwork.Name $containerNetwork.Name }}
-						## Can be connect with "{{ $containerNetwork.Name }}" network
-
 						{{/* If only 1 port exposed, use that */}}
 						{{ if eq $addrLen 1 }}
 							{{ $address := index $container.Addresses 0 }}
@@ -139,7 +137,7 @@ server {
 
 {{ if eq $nPaths 0 }}
 	# {{ $host }}
-	{{ template "upstream-definition" (dict "Upstream" $host "Containers" $containers "Networks" (json $CurrentContainer.Networks)) }}
+	{{ template "upstream-definition" (dict "Upstream" $host "Containers" $containers "Networks" $CurrentContainer.Networks) }}
 {{ else }}
 	{{ range $path, $containers := $paths }}
 		{{ $sum := sha1 $path }}
